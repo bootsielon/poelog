@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PoeLog Current Chat Export</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: #1f2933;
+      background: #f4f7fb;
+    }
+    main {
+      max-width: 920px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      padding: 24px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+    p {
+      margin: 0;
+      line-height: 1.5;
+    }
+    #summary {
+      margin-top: 8px;
+      color: #52606d;
+    }
+    #status {
+      margin-top: 16px;
+      font-weight: 600;
+    }
+    #status.error {
+      color: #b00020;
+    }
+    #counts {
+      margin-top: 10px;
+      color: #52606d;
+      font-size: 14px;
+    }
+    progress {
+      margin-top: 12px;
+      width: 100%;
+      height: 14px;
+    }
+    .controls {
+      margin-top: 18px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    button {
+      border: none;
+      border-radius: 8px;
+      background: #5d6d7e;
+      color: white;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:disabled {
+      background: #c7cdd4;
+      cursor: default;
+    }
+    #log {
+      margin-top: 20px;
+      padding: 14px;
+      border-radius: 10px;
+      background: #0f172a;
+      color: #dbe7ff;
+      min-height: 260px;
+      max-height: 540px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>PoeLog Current Chat Export</h1>
+    <p id="summary">This tab keeps the current-chat export running even if you switch away from the extension popup.</p>
+    <p id="status" role="status" aria-live="polite">Starting…</p>
+    <p id="counts"></p>
+    <progress id="progress" value="0" max="2"></progress>
+    <div class="controls">
+      <button id="closeBtn">Close Tab</button>
+    </div>
+    <pre id="log"></pre>
+  </main>
+  <script src="current_export.js"></script>
+</body>
+</html>

@@ -5,6 +5,7 @@
   <style>
     body {
       font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      min-width: 220px;
       padding: 10px;
       color: #333;
       background-color: #f2f2f2;
@@ -14,18 +15,33 @@
       color: #555;
       font-size: 16px;
       margin-bottom: 15px;
-      margin-top: 0px;
-      text-wrap: nowrap;
+      margin-top: 0;
+      white-space: nowrap;
     }
     label {
       display: block;
       margin-bottom: 5px;
       color: #444;
-      text-wrap: nowrap;
+      white-space: nowrap;
+    }
+    .fieldLabel {
+      margin-top: 10px;
+      margin-bottom: 4px;
+      font-size: 12px;
+      color: #555;
     }
     input[type="checkbox"] {
       margin-right: 5px;
       vertical-align: middle;
+    }
+    input[type="number"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 1px solid #c7cdd4;
+      border-radius: 4px;
+      background: white;
+      color: #333;
     }
     button {
       background-color: #4285f4;
@@ -33,6 +49,7 @@
       border: none;
       padding: 10px 15px;
       margin-top: 10px;
+      width: 100%;
       border-radius: 3px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
       cursor: pointer;
@@ -43,13 +60,41 @@
     button:hover:not(:disabled) {
       background-color: #3079ed;
     }
+    button.secondary {
+      background-color: #5d6d7e;
+    }
+    button.secondary:hover:not(:disabled) {
+      background-color: #4d5a68;
+    }
+    #status {
+      min-height: 18px;
+      margin: 10px 0 0;
+      color: #555;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    #status.error {
+      color: #b00020;
+    }
+    #modeHint {
+      margin: 8px 0 0;
+      color: #555;
+      font-size: 11px;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
   <h1>Poe Log Downloader</h1>
   <label><input type="checkbox" id="includeHuman" checked> Include human messages</label>
   <label><input type="checkbox" id="includeBot" checked> Include bot messages</label>
-  <button id="downloadBtn">Download Transcript</button>
+  <label><input type="checkbox" id="includeMediaDownloads"> Download media/attachments for current chat</label>
+  <label class="fieldLabel" for="bulkWorkers">Bulk worker tabs</label>
+  <input type="number" id="bulkWorkers" min="1" max="20" step="1">
+  <button id="downloadBtn">Download Current Chat</button>
+  <button id="bulkDownloadBtn" class="secondary">Bulk Export From /chats</button>
+  <p id="status" role="status" aria-live="polite"></p>
+  <p id="modeHint"></p>
   <script src="popup.js"></script>
 </body>
 </html>
