@@ -60,6 +60,9 @@ const SELECTORS = {
     chatLinks: ['a[href*="/chat/"]']
 };
 
+const MESSAGE_CONTAINER_SELECTOR = '[class*="ChatMessage_chatMessage"]';
+const MESSAGE_ID_SELECTOR = '[id^="message-"]';
+
 const turndownService = typeof TurndownService === 'function'
     ? new TurndownService({
         codeBlockStyle: 'fenced',
@@ -115,6 +118,23 @@ function getNextDataPayload() {
     }
 
     return nextDataPayload;
+}
+
+function getCurrentChatMessagesConnection() {
+    return getNextDataPayload()?.props?.pageProps?.data?.mainQuery?.chatOfCode?.messagesConnection || null;
+}
+
+function getCurrentChatPaginationSnapshot() {
+    const connection = getCurrentChatMessagesConnection();
+    if (!connection || typeof connection !== 'object') {
+        return null;
+    }
+
+    return {
+        edgeCount: Array.isArray(connection.edges) ? connection.edges.length : 0,
+        hasPreviousPage: Boolean(connection.pageInfo?.hasPreviousPage),
+        startCursor: typeof connection.pageInfo?.startCursor === 'string' ? connection.pageInfo.startCursor : null
+    };
 }
 
 function resetChatHistoryCaptureState() {
@@ -350,6 +370,78 @@ function queryAllAcrossSelectors(root, selectors) {
     return elements;
 }
 
+function sortElementsInDocumentOrder(elements) {
+    return elements.slice().sort((left, right) => {
+        if (left === right) {
+            return 0;
+        }
+
+        const relationship = left.compareDocumentPosition(right);
+        if (relationship & Node.DOCUMENT_POSITION_FOLLOWING) {
+            return -1;
+        }
+        if (relationship & Node.DOCUMENT_POSITION_PRECEDING) {
+            return 1;
+        }
+
+        return 0;
+    });
+}
+
+function getMessageElementId(messageNode) {
+    if (!(messageNode instanceof Element)) {
+        return '';
+    }
+
+    if (typeof messageNode.id === 'string' && messageNode.id.startsWith('message-')) {
+        return messageNode.id;
+    }
+
+    const nestedIdNode = messageNode.matches(MESSAGE_ID_SELECTOR)
+        ? messageNode
+        : queryFirst(messageNode, [MESSAGE_ID_SELECTOR]);
+    return nestedIdNode?.id || '';
+}
+
+function getCanonicalMessageNode(node) {
+    if (!(node instanceof Element)) {
+        return null;
+    }
+
+    const messageIdNode = node.matches(MESSAGE_ID_SELECTOR)
+        ? node
+        : queryFirst(node, [MESSAGE_ID_SELECTOR]) || node.closest(MESSAGE_ID_SELECTOR);
+    if (messageIdNode) {
+        return messageIdNode;
+    }
+
+    const messageContainer = node.matches(MESSAGE_CONTAINER_SELECTOR)
+        ? node
+        : node.closest(MESSAGE_CONTAINER_SELECTOR);
+    if (messageContainer) {
+        return messageContainer;
+    }
+
+    return null;
+}
+
+function normalizeMessageNodes(elements) {
+    const canonicalNodes = [];
+    const seenNodes = new Set();
+
+    elements.forEach((element) => {
+        const canonicalNode = getCanonicalMessageNode(element);
+        if (!canonicalNode || seenNodes.has(canonicalNode)) {
+            return;
+        }
+
+        seenNodes.add(canonicalNode);
+        canonicalNodes.push(canonicalNode);
+    });
+
+    return sortElementsInDocumentOrder(canonicalNodes);
+}
+
 function cleanText(value) {
     return String(value || '')
         .replace(/\u00a0/g, ' ')
@@ -390,7 +482,7 @@ async function waitForCondition(predicate, options = {}) {
 }
 
 function getMessageNodes(root = getChatRoot()) {
-    return queryAll(root, SELECTORS.messageNodes);
+    return normalizeMessageNodes(queryAllAcrossSelectors(root, SELECTORS.messageNodes));
 }
 
 function getMessageGroups(root = getChatRoot()) {
@@ -691,7 +783,7 @@ function getAttachmentKind(mediaNode, url) {
 }
 
 function getMessageNumericId(messageNode) {
-    const rawId = String(messageNode?.id || '');
+    const rawId = getMessageElementId(messageNode);
     const match = rawId.match(/^message-(\d+)$/);
     return match ? Number.parseInt(match[1], 10) : null;
 }
@@ -1086,8 +1178,8 @@ function buildMessageWindowSignature() {
     const lastNode = messageNodes[messageNodes.length - 1];
     return [
         String(messageNodes.length),
-        firstNode?.id || getNodeTextSignature(firstNode),
-        lastNode?.id || getNodeTextSignature(lastNode)
+        getMessageElementId(firstNode) || getNodeTextSignature(firstNode),
+        getMessageElementId(lastNode) || getNodeTextSignature(lastNode)
     ].join('|');
 }
 
@@ -1234,7 +1326,7 @@ function extractMessageEntry(messageNode, botName, options) {
 }
 
 function buildMessageRecordKey(messageNode, entry, dateLabel) {
-    return messageNode.id || [
+    return getMessageElementId(messageNode) || [
         entry.speaker,
         dateLabel || '',
         entry.content.slice(0, 200),
@@ -1255,13 +1347,34 @@ function extractMessageRecord(messageNode, botName, options, dateLabel) {
     };
 }
 
+function getMessageDateLabel(messageNode) {
+    for (const selector of SELECTORS.messageGroups) {
+        const group = messageNode.closest(selector);
+        if (!group) {
+            continue;
+        }
+
+        const dateLabel = cleanText(queryFirst(group, SELECTORS.dateLabel)?.textContent);
+        if (dateLabel) {
+            return dateLabel;
+        }
+    }
+
+    return null;
+}
+
 function captureVisibleMessageRecords(botName, options) {
     const root = getChatRoot();
     const groups = getMessageGroups(root);
 
     if (groups.length === 0) {
         return getMessageNodes(root)
-            .map((messageNode) => extractMessageRecord(messageNode, botName, options, null))
+            .map((messageNode) => extractMessageRecord(
+                messageNode,
+                botName,
+                options,
+                getMessageDateLabel(messageNode)
+            ))
             .filter(Boolean);
     }
 
@@ -1381,6 +1494,20 @@ function isConversationScrollContainerAtTop(scrollContainer) {
     return metrics.top <= 4 || getScrollRange(scrollContainer) <= 4;
 }
 
+function canUseImmediateTranscriptCapture(initialNodes, scrollContainer) {
+    const paginationSnapshot = getCurrentChatPaginationSnapshot();
+    if (!paginationSnapshot || paginationSnapshot.hasPreviousPage) {
+        return false;
+    }
+
+    if (initialNodes.length === 0 || paginationSnapshot.edgeCount === 0) {
+        return false;
+    }
+
+    return initialNodes.length >= paginationSnapshot.edgeCount
+        && getScrollRange(scrollContainer) <= Math.max(96, Math.floor(getViewportHeight(scrollContainer) * 0.2));
+}
+
 async function probeConversationTopHydration(scrollContainer) {
     const before = getScrollMetrics(scrollContainer);
     const nudgeDistance = Math.max(96, Math.min(220, Math.floor(before.viewportHeight * 0.22)));
@@ -1475,20 +1602,45 @@ async function collectConversationMessages(botName, options) {
         -1
     );
     const diagnostics = {
+        initialNodeCount: initialNodes.length,
         initialVisibleMessageCount: initialNodes.length,
         finalVisibleMessageCount: initialNodes.length,
         initialHarvestedCount: 0,
         finalHarvestedCount: 0,
         maxVisibleCount: initialNodes.length,
         maxHarvestedCount: 0,
+        nextDataEdgeCount: getCurrentChatPaginationSnapshot()?.edgeCount ?? null,
         candidateCount: 1,
         candidateLabels: [describeScrollCandidate(scrollContainer)],
         candidateRanges: [Math.round(getScrollRange(scrollContainer))],
+        harvestProfile: 'full',
+        initialScrollRange: Math.round(getScrollRange(scrollContainer)),
+        nextDataHasPreviousPage: getCurrentChatPaginationSnapshot()?.hasPreviousPage ?? null,
         movedRounds: 0,
         progressRounds: 0,
         stableRoundsReached: 0,
         finalAtTop: false
     };
+
+    if (canUseImmediateTranscriptCapture(initialNodes, scrollContainer)) {
+        const messages = captureVisibleMessageRecords(botName, options);
+        diagnostics.harvestProfile = 'immediate';
+        diagnostics.finalVisibleMessageCount = initialNodes.length;
+        diagnostics.finalHarvestedCount = messages.length;
+        diagnostics.maxHarvestedCount = messages.length;
+        diagnostics.maxVisibleCount = initialNodes.length;
+        diagnostics.stableRoundsReached = 0;
+        diagnostics.finalAtTop = isConversationScrollContainerAtTop(scrollContainer);
+
+        if (messages.length === 0) {
+            throw new Error('No matching messages were found in the current Poe conversation.');
+        }
+
+        return {
+            messages,
+            diagnostics
+        };
+    }
 
     const recordMap = new Map();
     let orderedKeys = [];

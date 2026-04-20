@@ -1,0 +1,11 @@
+{
+  "name": "poelog-tools",
+  "private": true,
+  "scripts": {
+    "verify:html": "node tools/poelog_verify.mjs html",
+    "verify:export": "node tools/poelog_verify.mjs export"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}

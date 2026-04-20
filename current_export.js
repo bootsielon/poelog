@@ -66,7 +66,8 @@ function logConversationDiagnostics(diagnostics) {
     }
 
     appendLog(`Extraction diagnostics: candidates=${diagnostics.candidateCount || 0}, movedRounds=${diagnostics.movedRounds || 0}, progressRounds=${diagnostics.progressRounds || 0}, finalAtTop=${Boolean(diagnostics.finalAtTop)}, stableRounds=${diagnostics.stableRoundsReached || 0}`);
-    appendLog(`Visible messages: initial=${diagnostics.initialVisibleMessageCount || 0}, max=${diagnostics.maxVisibleCount || 0}, final=${diagnostics.finalVisibleMessageCount || 0}`);
+    appendLog(`Harvest path: profile=${diagnostics.harvestProfile || 'unknown'}, initialScrollRange=${diagnostics.initialScrollRange ?? '?'}, nextDataHasPreviousPage=${diagnostics.nextDataHasPreviousPage ?? 'unknown'}, nextDataEdgeCount=${diagnostics.nextDataEdgeCount ?? 'unknown'}`);
+    appendLog(`Visible messages: initial=${diagnostics.initialVisibleMessageCount || 0}, max=${diagnostics.maxVisibleCount || 0}, final=${diagnostics.finalVisibleMessageCount || 0}, initialNodes=${diagnostics.initialNodeCount || 0}`);
     appendLog(`Harvested messages: max=${diagnostics.maxHarvestedCount || 0}, final=${diagnostics.finalHarvestedCount || 0}`);
 
     if (Array.isArray(diagnostics.candidateLabels) && diagnostics.candidateLabels.length > 0) {
@@ -100,6 +101,10 @@ function chromeCallback(method, context, ...args) {
 
 function getTab(tabId) {
     return chromeCallback(chrome.tabs.get, chrome.tabs, tabId);
+}
+
+function updateTab(tabId, updateProperties) {
+    return chromeCallback(chrome.tabs.update, chrome.tabs, tabId, updateProperties);
 }
 
 function sendMessageToTab(tabId, message) {
@@ -227,6 +232,16 @@ async function startCurrentExport() {
 
     appendLog(`Requesting transcript from source tab ${sourceTabId}.`);
     appendLog(`Filters: includeHuman=${includeHuman} includeBot=${includeBot} includeMediaDownloads=${includeMediaDownloads}`);
+    setStatus('Activating the Poe chat tab for scroll-driven capture...');
+
+    try {
+        await updateTab(sourceTabId, { active: true });
+        appendLog(`Reactivated source tab ${sourceTabId} so Poe can render and scroll during harvest.`);
+        await delay(500);
+    } catch (error) {
+        appendLog(`Could not reactivate source tab ${sourceTabId}: ${error.message || 'unknown error'}`, 'warn');
+    }
+
     setStatus('Loading the full Poe thread...');
     setProgress(0);
     updateCounts();

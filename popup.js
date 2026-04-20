@@ -77,7 +77,7 @@ function updateButtonAvailability() {
     if (onChats) {
         setModeHint(`Bulk export is available from this tab. Keep the /chats tab open while the catalog pass runs. Worker tabs default to ${getSuggestedBulkWorkers()} on this machine.`);
     } else if (onConversation) {
-        setModeHint('Current-chat export opens a dedicated exporter tab, so it can keep running even after the popup loses focus. The media checkbox downloads linked attachments for the current chat only.');
+        setModeHint('Current-chat export uses a helper tab for logging, but it will hand focus back to the Poe chat so the source tab can render and scroll while harvesting. The media checkbox downloads linked attachments for the current chat only.');
     } else if (onPoe) {
         setModeHint('Open a Poe conversation for single export, or open https://poe.com/chats for bulk export.');
     } else {
@@ -118,7 +118,7 @@ downloadButton.addEventListener('click', () => {
         exportUrl.searchParams.set('includeBot', includeBot ? '1' : '0');
         exportUrl.searchParams.set('includeMediaDownloads', includeMediaDownloads ? '1' : '0');
 
-        chrome.tabs.create({ url: exportUrl.toString(), active: true }, (tab) => {
+        chrome.tabs.create({ url: exportUrl.toString(), active: false }, (tab) => {
             setBusy(false);
 
             if (chrome.runtime.lastError || !tab?.id) {
